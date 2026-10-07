@@ -1,0 +1,330 @@
+// Watts Up Meter – PostgreSQL schema.
+//
+// Converted 1:1 from the original Supabase migrations
+// (supabase/migrations/2026081320283*, 2026081922*, 20260824120550).
+//
+// Field names intentionally match the existing column names (snake_case) so
+// that Prisma can adopt an existing database without renames and the REST API
+// keeps returning the same row shapes the UI was built against.
+//
+// Two indexes cannot be expressed in Prisma and are created with raw SQL in
+// the baseline migration (prisma/migrations/0001_baseline/migration.sql):
+//   - meter_configurations_one_default : UNIQUE (meter_id) WHERE is_default
+//   - meter_configurations_name_unique : UNIQUE (meter_id, lower(name))
+
+generator client {
+  provider = "prisma-client-js"
+  // Rust-free client: queries run through the `pg` driver via @prisma/adapter-pg
+  // (see src/prisma/prisma.service.ts). No native query-engine binary is needed
+  // at runtime, which keeps the Docker image small.
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AppRole {
+  admin
+  customer
+
+  @@map("app_role")
+}
+
+enum MeterStatus {
+  ACTIVE
+  LOW
+  CRITICAL
+  URGENT
+  DEPLETED
+  INACTIVE
+
+  @@map("meter_status")
+}
+
+enum GsmStatus {
+  CONNECTED
+  WEAK
+  DISCONNECTED
+
+  @@map("gsm_status")
+}
+
+enum UsageProfile {
+  CONSTANT
+  CYCLIC
+  INTERMITTENT
+
+  @@map("usage_profile")
+}
+
+/// Replaces Supabase auth.users. Ids are preserved on import so every
+/// existing foreign key keeps pointing at the same person.
+model User {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String   @unique
+  password_hash String
+  /// Incremented on logout; tokens carrying an older version are rejected.
+  token_version Int      @default(0)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  profile Profile?
+  roles   UserRole[]
+  meters  Meter[]
+
+  @@map("users")
+}
+
+model Profile {
+  id           String   @id @db.Uuid
+  full_name    String   @default("Customer")
+  email        String?
+  phone_number String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("profiles")
+}
+
+model UserRole {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  role       AppRole
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, role])
+  @@map("user_roles")
+}
+
+model Meter {
+  id                 String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String      @db.Uuid
+  meter_number       String      @unique
+  customer_name      String      @default("Demo Customer")
+  phone_number       String?
+  initial_balance    Decimal     @default(50) @db.Decimal(12, 4)
+  balance_kwh        Decimal     @default(50) @db.Decimal(12, 4)
+  total_consumed_kwh Decimal     @default(0) @db.Decimal(12, 4)
+  voltage            Decimal     @default(230) @db.Decimal(8, 2)
+  current_amps       Decimal     @default(0) @db.Decimal(8, 3)
+  power_watts        Decimal     @default(0) @db.Decimal(10, 2)
+  frequency_hz       Decimal     @default(50) @db.Decimal(6, 3)
+  power_factor       Decimal     @default(0.95) @db.Decimal(4, 3)
+  status             MeterStatus @default(ACTIVE)
+  gsm                GsmStatus   @default(CONNECTED)
+  signal_dbm         Int         @default(-72)
+  tariff_per_kwh     Decimal     @default(100) @db.Decimal(10, 2)
+  low_threshold      Decimal     @default(15) @db.Decimal(10, 2)
+  critical_threshold Decimal     @default(10) @db.Decimal(10, 2)
+  urgent_threshold   Decimal     @default(5) @db.Decimal(10, 2)
+  notified_low       Boolean     @default(false)
+  notified_critical  Boolean     @default(false)
+  notified_urgent    Boolean     @default(false)
+  notified_depleted  Boolean     @default(false)
+  simulation_running Boolean     @default(false)
+  simulation_speed   Int         @default(60)
+  simulated_seconds  Decimal     @default(0) @db.Decimal(14, 2)
+  last_tick_at       DateTime?   @db.Timestamptz(6)
+  last_reading_at    DateTime?   @db.Timestamptz(6)
+  created_at         DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime    @default(now()) @updatedAt @db.Timestamptz(6)
+
+  user           User                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  appliances     MeterAppliance[]
+  readings       MeterReading[]
+  recharges      Recharge[]
+  alerts         Alert[]
+  sms_logs       SmsLog[]
+  ussd_sessions  UssdSession[]
+  configurations MeterConfiguration[]
+
+  @@index([user_id], map: "idx_meters_user")
+  @@index([phone_number], map: "idx_meters_phone")
+  @@map("meters")
+}
+
+model Appliance {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String       @unique
+  category      String
+  icon          String       @default("plug")
+  rated_power   Decimal      @db.Decimal(10, 2)
+  idle_power    Decimal      @default(0) @db.Decimal(10, 2)
+  voltage       Decimal      @default(230) @db.Decimal(8, 2)
+  power_factor  Decimal      @default(0.95) @db.Decimal(4, 3)
+  usage_profile UsageProfile @default(CONSTANT)
+  duty_cycle    Decimal      @default(1) @db.Decimal(4, 3)
+  cycle_seconds Int          @default(600)
+  created_at    DateTime     @default(now()) @db.Timestamptz(6)
+
+  meter_links MeterAppliance[]
+
+  @@map("appliances")
+}
+
+model MeterAppliance {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meter_id     String   @db.Uuid
+  appliance_id String   @db.Uuid
+  is_on        Boolean  @default(true)
+  cycle_phase  Decimal  @default(0) @db.Decimal(10, 2)
+  energy_kwh   Decimal  @default(0) @db.Decimal(12, 5)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  meter     Meter     @relation(fields: [meter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  appliance Appliance @relation(fields: [appliance_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([meter_id], map: "idx_meter_appliances_meter")
+  @@map("meter_appliances")
+}
+
+model MeterReading {
+  id           BigInt   @id @default(autoincrement())
+  meter_id     String   @db.Uuid
+  voltage      Decimal  @db.Decimal(8, 2)
+  current_amps Decimal  @db.Decimal(8, 3)
+  power_watts  Decimal  @db.Decimal(10, 2)
+  frequency_hz Decimal  @db.Decimal(6, 3)
+  power_factor Decimal  @db.Decimal(4, 3)
+  energy_kwh   Decimal  @db.Decimal(12, 5)
+  balance_kwh  Decimal  @db.Decimal(12, 4)
+  recorded_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  meter Meter @relation(fields: [meter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([meter_id, recorded_at(sort: Desc)], map: "idx_readings_meter_time")
+  @@map("meter_readings")
+}
+
+model Recharge {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meter_id         String   @db.Uuid
+  amount_kwh       Decimal  @db.Decimal(12, 4)
+  previous_balance Decimal  @db.Decimal(12, 4)
+  new_balance      Decimal  @db.Decimal(12, 4)
+  reference        String
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  meter Meter @relation(fields: [meter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([meter_id, created_at(sort: Desc)], map: "idx_recharges_meter")
+  @@map("recharges")
+}
+
+model Alert {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meter_id    String   @db.Uuid
+  /// Owner of the meter at the time of the alert (no FK, as in the original schema).
+  user_id     String   @db.Uuid
+  type        String
+  severity    String   @default("INFO")
+  threshold   Decimal? @db.Decimal(10, 2)
+  balance_kwh Decimal? @db.Decimal(12, 4)
+  message     String
+  sms_status  String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  meter    Meter    @relation(fields: [meter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sms_logs SmsLog[]
+
+  @@index([meter_id, created_at(sort: Desc)], map: "idx_alerts_meter")
+  @@map("alerts")
+}
+
+model SmsLog {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meter_id            String?   @db.Uuid
+  user_id             String?   @db.Uuid
+  alert_id            String?   @db.Uuid
+  phone_number        String
+  message             String
+  provider            String    @default("africastalking")
+  provider_message_id String?
+  /// QUEUED | SENDING | SENT | RETRY_SCHEDULED | DELIVERED | FAILED
+  status              String    @default("QUEUED")
+  failure_reason      String?
+  cost                String?
+  sent_at             DateTime? @db.Timestamptz(6)
+  delivered_at        DateTime? @db.Timestamptz(6)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  attempts            Int       @default(0)
+  last_attempt_at     DateTime? @db.Timestamptz(6)
+  next_attempt_at     DateTime? @db.Timestamptz(6)
+
+  meter Meter? @relation(fields: [meter_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  alert Alert? @relation(fields: [alert_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([meter_id, created_at(sort: Desc)], map: "idx_sms_logs_meter")
+  @@index([provider_message_id], map: "idx_sms_logs_provider_msg")
+  @@map("sms_logs")
+}
+
+model UssdSession {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id    String
+  phone_number  String
+  service_code  String?
+  meter_id      String?   @db.Uuid
+  user_id       String?   @db.Uuid
+  request_text  String?
+  response_text String?
+  /// ACTIVE | COMPLETED
+  status        String    @default("ACTIVE")
+  started_at    DateTime  @default(now()) @db.Timestamptz(6)
+  ended_at      DateTime? @db.Timestamptz(6)
+
+  meter Meter? @relation(fields: [meter_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([session_id, request_text], map: "ussd_sessions_dedupe")
+  @@index([session_id], map: "idx_ussd_session")
+  @@index([phone_number, started_at(sort: Desc)], map: "idx_ussd_phone")
+  @@map("ussd_sessions")
+}
+
+model NotificationTemplate {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  body        String
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  channel     String   @default("SMS")
+  description String?
+
+  @@map("notification_templates")
+}
+
+model MeterConfiguration {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meter_id   String   @db.Uuid
+  name       String
+  is_default Boolean  @default(false)
+  /// Array<{ applianceId: string; isOn: boolean }>
+  items      Json     @default("[]")
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  meter Meter @relation(fields: [meter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("meter_configurations")
+}
+
+model WebhookEvent {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider           String
+  event_type         String
+  external_id        String
+  signature_verified Boolean  @default(false)
+  payload            Json?
+  response_text      String?
+  /// RECEIVED | PROCESSED | FAILED
+  status             String   @default("PROCESSED")
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([provider, event_type, external_id], map: "webhook_events_dedupe")
+  @@map("webhook_events")
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./prisma",
+    "outDir": "./dist-scripts",
+    "sourceMap": false
+  },
+  "include": ["prisma/seed.ts", "prisma/import-from-supabase.ts"]
+}
