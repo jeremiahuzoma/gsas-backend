@@ -6,7 +6,7 @@ import type { Env } from "../config/env.validation";
 export interface ProviderConfig {
   username: string;
   apiKey: string;
-  environment: string;
+  jsonUrl: string;
   senderId: string;
   serviceCode: string;
   webhookSecret: string;
@@ -14,8 +14,7 @@ export interface ProviderConfig {
 }
 
 /**
- * Reads Africa's Talking settings (was readProviderConfig()). Switching between
- * sandbox and live is a configuration change, not a code change.
+ * EbulkSMS handles outbound SMS; Africa's Talking is used only for USSD.
  */
 @Injectable()
 export class ProviderConfigService {
@@ -23,13 +22,13 @@ export class ProviderConfigService {
 
   read(): ProviderConfig {
     const get = <K extends keyof Env>(key: K) => this.config.get(key, { infer: true });
-    const username = get("AFRICASTALKING_USERNAME");
-    const apiKey = get("AFRICASTALKING_API_KEY");
+    const username = get("EBULKSMS_USERNAME");
+    const apiKey = get("EBULKSMS_APIKEY");
     return {
       username,
       apiKey,
-      environment: get("AFRICASTALKING_ENVIRONMENT") || "sandbox",
-      senderId: get("AFRICASTALKING_SMS_SENDER_ID") || get("AFRICASTALKING_SENDER_ID"),
+      jsonUrl: get("EBULKSMS_JSON_URL"),
+      senderId: get("EBULKSMS_SENDER") || "GSAS",
       serviceCode: get("AFRICASTALKING_USSD_SERVICE_CODE") || get("AFRICASTALKING_SERVICE_CODE"),
       webhookSecret: get("AFRICASTALKING_WEBHOOK_SECRET"),
       configured: Boolean(username && apiKey),
@@ -41,7 +40,7 @@ export class ProviderConfigService {
     const cfg = this.read();
     return {
       configured: cfg.configured,
-      environment: cfg.environment,
+      provider: "EbulkSMS",
       senderId: cfg.senderId,
       serviceCode: cfg.serviceCode,
     };

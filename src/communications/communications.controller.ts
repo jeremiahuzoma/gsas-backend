@@ -15,7 +15,7 @@ export class CommunicationsController {
 
   @Get("config")
   @ApiOperation({
-    summary: "Non-sensitive SMS/USSD provider configuration (environment, sender id, service code)",
+    summary: "Non-sensitive SMS/USSD provider configuration (provider, sender id, service code)",
   })
   config() {
     return this.comms.getPublicConfig();

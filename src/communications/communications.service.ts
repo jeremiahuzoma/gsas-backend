@@ -36,7 +36,7 @@ export class CommunicationsService {
 
     if (!this.providerConfig.read().configured) {
       throw new ServiceUnavailableException(
-        "SMS provider is not configured. Add your Africa's Talking credentials to the backend environment.",
+        "SMS provider is not configured. Add your EbulkSMS username and API key to the backend environment.",
       );
     }
     const phone = normalisePhone(dto.phoneNumber);

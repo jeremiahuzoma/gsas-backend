@@ -37,7 +37,7 @@ export class WebhooksController {
   @Post(["webhooks/sms/delivery", "public/sms-delivery"])
   @ApiConsumes("application/x-www-form-urlencoded")
   @ApiOperation({
-    summary: "SMS delivery report (Africa's Talking): id, status, phoneNumber, failureReason",
+    summary: "Legacy Africa's Talking SMS delivery report: id, status, phoneNumber, failureReason",
     description:
       "Signature-verified when AFRICASTALKING_WEBHOOK_SECRET is set. Idempotent on messageId:status; replays return the stored response. Returns 500 on processing errors so the provider retries.",
   })

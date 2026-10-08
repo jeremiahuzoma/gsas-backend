@@ -2,7 +2,7 @@
   "name": "watts-up-meter-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "NestJS API for the Watts Up Meter prepaid energy meter simulation (SMS + USSD over Africa's Talking).",
+  "description": "NestJS API for the Watts Up Meter prepaid energy simulation (EbulkSMS + Africa's Talking USSD).",
   "scripts": {
     "build": "nest build && tsc -p tsconfig.scripts.json",
     "start": "node dist/main.js",

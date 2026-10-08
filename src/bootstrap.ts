@@ -40,7 +40,7 @@ export function configureApp(app: INestApplication, opts: { swagger?: boolean } 
       .setTitle("Watts Up Meter API")
       .setDescription(
         [
-          "Virtual prepaid energy meter simulation with GSM SMS alerts and USSD queries over Africa's Talking.",
+          "Virtual prepaid energy meter simulation with EbulkSMS alerts and Africa's Talking USSD queries.",
           "",
           "Authenticate with POST /api/auth/login and send `Authorization: Bearer <accessToken>`.",
           "Live updates: GET /api/meters/{id}/events/stream (Server-Sent Events: meter.updated, simulation.event, error).",

@@ -1,6 +1,6 @@
 import { Global, Module } from "@nestjs/common";
 
-import { AfricaTalkingSmsProvider, UnconfiguredSmsProvider } from "./africastalking.provider";
+import { EbulkSmsProvider, UnconfiguredSmsProvider } from "./ebulksms.provider";
 import { CommunicationsController } from "./communications.controller";
 import { CommunicationsService } from "./communications.service";
 import { ProviderConfigService } from "./provider-config";
@@ -20,7 +20,7 @@ import { TemplatesService } from "./templates.service";
       useFactory: (cfg: ProviderConfigService) => {
         const config = cfg.read();
         return config.configured
-          ? new AfricaTalkingSmsProvider(config)
+          ? new EbulkSmsProvider(config)
           : new UnconfiguredSmsProvider();
       },
     },

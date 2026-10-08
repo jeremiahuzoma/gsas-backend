@@ -155,7 +155,7 @@ describe("Meter simulation, alerts, SMS and recharge (e2e)", () => {
       expect.arrayContaining([
         expect.stringMatching(/^LOW BALANCE THRESHOLD REACHED/),
         "SMS QUEUED",
-        "SMS SENT via Africa's Talking",
+        "SMS SENT via EbulkSMS",
       ]),
     );
     for (let i = 0; i < 3; i += 1) {

@@ -4,9 +4,8 @@ import { z } from "zod";
  * Environment contract for the API. Validated once at boot by ConfigModule so a
  * misconfigured deployment fails fast instead of failing on the first request.
  *
- * Africa's Talking variable names are the ones the original application used
- * (AFRICASTALKING_SMS_SENDER_ID, AFRICASTALKING_USSD_SERVICE_CODE). The shorter
- * AFRICASTALKING_SENDER_ID / AFRICASTALKING_SERVICE_CODE are accepted as aliases.
+ * EbulkSMS sends messages; Africa's Talking configuration is retained for the
+ * USSD callback channel.
  */
 const optionalString = z
   .string()
@@ -28,11 +27,10 @@ export const envSchema = z
     /** Comma-separated list of browser origins allowed by CORS. */
     FRONTEND_URL: z.string().default("http://localhost:5173"),
 
-    AFRICASTALKING_USERNAME: optionalString,
-    AFRICASTALKING_API_KEY: optionalString,
-    AFRICASTALKING_ENVIRONMENT: z.string().default("sandbox"),
-    AFRICASTALKING_SMS_SENDER_ID: optionalString,
-    AFRICASTALKING_SENDER_ID: optionalString,
+    EBULKSMS_USERNAME: optionalString,
+    EBULKSMS_APIKEY: optionalString,
+    EBULKSMS_SENDER: z.string().trim().default("GSAS"),
+    EBULKSMS_JSON_URL: z.string().url().default("https://api.ebulksms.com/sendsms.json"),
     AFRICASTALKING_USSD_SERVICE_CODE: optionalString,
     AFRICASTALKING_SERVICE_CODE: optionalString,
     AFRICASTALKING_WEBHOOK_SECRET: optionalString,

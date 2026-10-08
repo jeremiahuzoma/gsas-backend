@@ -66,7 +66,7 @@ export class SmsService {
       simEvent(
         result.status === "SENT" ? "success" : "error",
         result.status === "SENT"
-          ? "SMS SENT via Africa's Talking"
+          ? "SMS SENT via EbulkSMS"
           : `SMS FAILED: ${result.failureReason ?? "unknown error"}`,
       ),
     );
